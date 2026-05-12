@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSCRIC-LoRa — Smart Irrigation Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════
+       LOGIN SCREEN
+       ═══════════════════════════════════════════════════ -->
+  <div id="loginScreen" class="login-overlay" style="display:flex">
+    <div class="login-box">
+      <div class="login-logo">
+        <span style="font-size:2.5em">🌾</span>
+        <h2>TSCRIC-LoRa</h2>
+        <p>Smart Irrigation Dashboard v3.0</p>
+        <small>Oriental College of Technology, Bhopal</small>
+      </div>
+      <div id="loginError" class="login-error" style="display:none">
+        ❌ Incorrect password. Please try again.
+      </div>
+      <div class="login-field">
+        <label>Dashboard Password</label>
+        <input type="password" id="loginPass" placeholder="Enter password..."
+          onkeydown="if(event.key==='Enter') doLogin()" autocomplete="current-password"/>
+      </div>
+      <button class="btn btn-save" style="width:100%;margin-top:12px" onclick="doLogin()">
+        🔐 Login to Dashboard
+      </button>
+      <div class="login-hint">Contact your project administrator for access credentials.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════ -->
+  <header class="header" id="mainHeader" style="display:none">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🌾</span>
+        <div>
+          <h1>TSCRIC-LoRa</h1>
+          <p>Temporal Soil-Crop Resonance Irrigation Controller v3.0</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-dot" id="connDot"></span>
+        <span id="connStatus">Connecting...</span>
+        <span class="timestamp" id="lastUpdate">--</span>
+        <button class="btn-logout" onclick="doLogout()" title="Logout">🔓 Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════
+       MAIN CONTENT
+       ═══════════════════════════════════════════════════ -->
+  <div id="mainContent" style="display:none">
+
+  <!-- ALERT BAR -->
+  <div class="alert-bar" id="alertBar" style="display:none"></div>
+
+  <!-- ── OFFLINE / AUTONOMOUS MODE BANNER ─────────────── -->
+  <div class="mode-banner offline-banner" id="offlineBanner" style="display:none">
+    <span>📡</span>
+    <span id="offlineBannerMsg">Operating in Autonomous Offline Mode</span>
+  </div>
+
+  <!-- ── SAFE MODE BANNER ──────────────────────────────── -->
+  <div class="mode-banner safe-banner" id="safeModePanel" style="display:none">
+    <span>⚠️ SAFE MODE ACTIVE</span>
+    <span>All soil sensors failed or corrupted. Irrigation limited to prevent overwatering. Check sensor wiring immediately.</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       CONFIGURATION PANEL
+       ═══════════════════════════════════════════════════ -->
+  <div class="config-panel">
+    <div class="config-header">
+      <span class="config-icon">⚙️</span>
+      <span class="config-title">Farm Configuration</span>
+      <span class="config-badge" id="configSavedBadge" style="display:none">✓ Saved to Firebase &amp; Device</span>
+    </div>
+    <div class="config-grid">
+
+      <!-- CROP -->
+      <div class="config-card">
+        <label class="config-label">🌱 Select Crop</label>
+        <select id="cropSelectMain" class="config-select" onchange="onCropChange(this.value)">
+          <option value="0">🌾 Wheat (Gehun)</option>
+          <option value="1">🌾 Rice (Dhan)</option>
+          <option value="2">🌽 Maize (Makka)</option>
+          <option value="3">🌿 Cotton (Kapas)</option>
+          <option value="4">🫘 Soybean (Soya)</option>
+          <option value="5">🫘 Chickpea (Chana)</option>
+          <option value="6">🌻 Mustard (Sarson)</option>
+          <option value="7">🎋 Sugarcane (Ganna)</option>
+        </select>
+        <div class="config-sub" id="cropStageInfo">Stage: -- &nbsp;|&nbsp; GDD: --</div>
+      </div>
+
+      <!-- PLOT AREA m² -->
+      <div class="config-card">
+        <label class="config-label">📐 Plot Area (m²)</label>
+        <div class="unit-input-wrap">
+          <input type="number" id="plotAreaM2" class="config-input"
+            min="1" max="100000" step="0.5" placeholder="e.g. 6"
+            oninput="onM2Input(this.value)"/>
+          <span class="unit-tag">m²</span>
+        </div>
+        <div class="config-sub">Min: 1 m² &nbsp;|&nbsp; Max: 1,00,000 m²</div>
+      </div>
+
+      <!-- PLOT AREA Bigha -->
+      <div class="config-card">
+        <label class="config-label">📐 Plot Area (Bigha)</label>
+        <div class="unit-input-wrap">
+          <input type="number" id="plotAreaBigha" class="config-input"
+            min="0.001" max="75" step="0.001" placeholder="e.g. 0.0045"
+            oninput="onBighaInput(this.value)"/>
+          <span class="unit-tag">Bigha</span>
+        </div>
+        <div class="config-sub">1 Bigha (MP) = 1333.33 m²</div>
+      </div>
+
+      <!-- WEATHER LOCATION -->
+      <div class="config-card">
+        <label class="config-label">🌍 Weather Location</label>
+        <select id="weatherLocation" class="config-select" onchange="onWeatherLocationChange(this.value)">
+          <optgroup label="🇮🇳 Madhya Pradesh">
+            <option value="bhopal" selected>Bhopal</option>
+            <option value="indore">Indore</option>
+            <option value="jabalpur">Jabalpur</option>
+            <option value="gwalior">Gwalior</option>
+            <option value="ujjain">Ujjain</option>
+            <option value="sagar">Sagar</option>
+            <option value="rewa">Rewa</option>
+            <option value="satna">Satna</option>
+            <option value="chhindwara">Chhindwara</option>
+            <option value="vidisha">Vidisha</option>
+            <option value="hoshangabad">Hoshangabad</option>
+            <option value="narsinghpur">Narsinghpur</option>
+          </optgroup>
+          <optgroup label="🇮🇳 Other Major Cities">
+            <option value="delhi">New Delhi</option>
+            <option value="mumbai">Mumbai</option>
+            <option value="pune">Pune</option>
+            <option value="nagpur">Nagpur</option>
+            <option value="lucknow">Lucknow</option>
+            <option value="patna">Patna</option>
+            <option value="jaipur">Jaipur</option>
+            <option value="chandigarh">Chandigarh</option>
+            <option value="hyderabad">Hyderabad</option>
+            <option value="bangalore">Bengaluru</option>
+            <option value="ahmedabad">Ahmedabad</option>
+            <option value="kolkata">Kolkata</option>
+            <option value="amritsar">Amritsar</option>
+            <option value="varanasi">Varanasi</option>
+            <option value="agra">Agra</option>
+          </optgroup>
+        </select>
+        <div class="config-sub" id="weatherLocationInfo">📍 Lat: 23.26°N &nbsp;|&nbsp; Lon: 77.41°E</div>
+      </div>
+
+      <!-- BUDGET PREVIEW -->
+      <div class="config-card config-preview">
+        <label class="config-label">💧 Water Budget Preview</label>
+        <div class="preview-row"><span>Crop Delta (Δ)</span><span class="preview-val" id="prevDelta">-- mm</span></div>
+        <div class="preview-row"><span>Field Capacity</span><span class="preview-val" id="prevFC">-- %</span></div>
+        <div class="preview-row"><span>Perm. Wilt Point</span><span class="preview-val" id="prevPWP">-- %</span></div>
+        <div class="preview-row"><span>Area</span><span class="preview-val" id="prevArea">-- m²</span></div>
+        <div class="preview-row"><span>= Bigha</span><span class="preview-val" id="prevBigha">--</span></div>
+        <div class="preview-row"><span>Seasonal Need</span><span class="preview-val" id="prevNeed">-- L</span></div>
+      </div>
+
+    </div><!-- /config-grid -->
+    <div class="config-save-row">
+      <button class="btn btn-save" onclick="saveConfig()">
+        💾 Save Config to Firebase &amp; Device
+      </button>
+      <span class="config-hint">Saves to Firebase → ESP8266 reads within 15s → EEPROM persisted</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       CROP BANNER
+       ═══════════════════════════════════════════════════ -->
+  <div class="crop-banner">
+    <div class="crop-info"><label>Active Crop</label><span id="cropName">--</span></div>
+    <div class="crop-info"><label>Stage</label><span id="stageName">--</span></div>
+    <div class="crop-info"><label>GDD</label><span id="gddVal">--</span><small> °C·day</small></div>
+    <div class="crop-info"><label>Plot Area</label><span id="liveArea">--</span></div>
+    <div class="crop-info"><label>Weather Loc</label><span id="weatherLocBanner">Bhopal</span></div>
+    <div class="crop-info"><label>Connection</label><span id="connMode">--</span></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       ONLINE / OFFLINE STATUS PANEL
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">🌐 Online / Offline Status</h2>
+    <div class="status-panel-grid">
+
+      <div class="status-block online-block">
+        <div class="status-block-title">📡 Device Mode</div>
+        <div class="status-row">
+          <span>WiFi / Firebase</span>
+          <span id="connStatus2" class="status-pill">--</span>
+        </div>
+        <div class="status-row">
+          <span>LoRa Fallback</span>
+          <span id="loraStatus" class="status-pill">Active</span>
+        </div>
+        <div class="status-row">
+          <span>Offline Logs Pending</span>
+          <span id="offlineLogCount" class="status-pill">--</span>
+        </div>
+      </div>
+
+      <div class="status-block owm-block">
+        <div class="status-block-title">🌩️ OpenWeatherMap</div>
+        <div class="status-row">
+          <span>OWM Status</span>
+          <span id="owmStatus" class="owm-status">--</span>
+        </div>
+        <div class="status-row"><span>Cloud Temp</span><span id="owmTemp">--</span></div>
+        <div class="status-row"><span>Cloud Humidity</span><span id="owmHumidity">--</span></div>
+        <div class="status-row"><span>Cloud Pressure</span><span id="owmPressure">--</span></div>
+        <div class="status-row"><span>Cloud Rainfall</span><span id="owmRain">--</span></div>
+      </div>
+
+      <div class="status-block comparison-block">
+        <div class="status-block-title">🔬 Cloud vs Local Comparison</div>
+        <div class="status-row">
+          <span>Temperature Δ</span>
+          <span id="cmpTemp" class="compare-val">--</span>
+        </div>
+        <div class="status-row">
+          <span>Humidity Δ</span>
+          <span id="cmpHum" class="compare-val">--</span>
+        </div>
+        <div class="status-row">
+          <span>Data Priority</span>
+          <span class="status-pill" style="background:#0a2e1c;color:#56d364">Local First</span>
+        </div>
+        <div class="status-row">
+          <span>DHT22 Fallback</span>
+          <span id="dhtFallbackBadge" class="fallback-badge" style="display:none">⚠️ OWM</span>
+        </div>
+        <div class="status-row">
+          <span>BMP280 Fallback</span>
+          <span id="bmpFallbackBadge" class="fallback-badge" style="display:none">⚠️ OWM</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       AI SCORE HERO
+       ═══════════════════════════════════════════════════ -->
+  <div class="ai-hero">
+    <div class="ai-circle" id="aiCircle">
+      <div class="ai-score-val" id="aiScore">--</div>
+      <div class="ai-label">AI Score</div>
+    </div>
+    <div class="ai-details">
+      <div class="ai-metric">
+        <span class="ai-metric-label">SMV</span>
+        <span class="ai-metric-val" id="smvVal">--</span>
+        <span class="ai-metric-unit">%/hr</span>
+      </div>
+      <div class="ai-metric">
+        <span class="ai-metric-label">SMA</span>
+        <span class="ai-metric-val" id="smaVal">--</span>
+        <span class="ai-metric-unit">%/hr²</span>
+      </div>
+      <div class="ai-metric">
+        <span class="ai-metric-label">TPR</span>
+        <span class="ai-metric-val" id="tprVal">--</span>
+        <span class="ai-metric-unit">cos θ</span>
+      </div>
+      <div class="ai-metric">
+        <span class="ai-metric-label">ETo</span>
+        <span class="ai-metric-val" id="etoVal">--</span>
+        <span class="ai-metric-unit">mm/day</span>
+      </div>
+      <div class="ai-metric">
+        <span class="ai-metric-label">Rain Prob</span>
+        <span class="ai-metric-val" id="rainVal">--</span>
+        <span class="ai-metric-unit">%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SENSOR HEALTH STATUS
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">🩺 Sensor Health Status</h2>
+    <div class="sensor-health-grid">
+      <div class="sh-item" id="sh_sm1"><span class="sh-dot ok"></span><span class="sh-name">SM1 (15cm)</span><span class="sh-stat ok">--</span></div>
+      <div class="sh-item" id="sh_sm2"><span class="sh-dot ok"></span><span class="sh-name">SM2 (30cm)</span><span class="sh-stat ok">--</span></div>
+      <div class="sh-item" id="sh_sm3"><span class="sh-dot ok"></span><span class="sh-name">SM3 (45cm)</span><span class="sh-stat ok">--</span></div>
+      <div class="sh-item" id="sh_dht"><span class="sh-dot ok"></span><span class="sh-name">DHT22</span><span class="sh-stat ok">--</span></div>
+      <div class="sh-item" id="sh_bmp"><span class="sh-dot ok"></span><span class="sh-name">BMP280</span><span class="sh-stat ok">--</span></div>
+      <div class="sh-item" id="sh_flow"><span class="sh-dot ok"></span><span class="sh-name">YF-S201 Flow</span><span class="sh-stat ok">--</span></div>
+      <div class="sh-item" id="sh_lora"><span class="sh-dot ok"></span><span class="sh-name">LoRa SX1278</span><span class="sh-stat ok">OK</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       TRI-DEPTH SOIL PROFILE
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">🌱 Tri-Depth Soil Profile</h2>
+    <div class="depth-grid">
+      <div class="depth-card">
+        <div class="depth-label">Surface (15 cm)</div>
+        <div class="depth-bar-wrap"><div class="depth-bar" id="bar1"></div></div>
+        <div class="depth-val" id="sm1Val">--%</div>
+      </div>
+      <div class="depth-card csmi-card">
+        <div class="depth-label">CSMI (Weighted)</div>
+        <div class="depth-bar-wrap"><div class="depth-bar csmi-bar" id="barCSMI"></div></div>
+        <div class="depth-val csmi-val" id="csmiVal">--%</div>
+      </div>
+      <div class="depth-card">
+        <div class="depth-label">Mid-root (30 cm)</div>
+        <div class="depth-bar-wrap"><div class="depth-bar" id="bar2"></div></div>
+        <div class="depth-val" id="sm2Val">--%</div>
+      </div>
+      <div class="depth-card">
+        <div class="depth-label">Deep root (45 cm)</div>
+        <div class="depth-bar-wrap"><div class="depth-bar" id="bar3"></div></div>
+        <div class="depth-val" id="sm3Val">--%</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       ENVIRONMENTAL SENSORS — LOCAL + OWM SIDE BY SIDE
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">📡 Environmental Sensors — Local (DHT22 + BMP280) &amp; Cloud (OWM)</h2>
+    <div class="sensor-grid">
+      <div class="sensor-card">
+        <div class="sensor-icon">🌡️</div>
+        <div class="sensor-val" id="tempVal">--</div>
+        <div class="sensor-unit">°C</div>
+        <div class="sensor-label">Temperature (Local)</div>
+        <div class="sensor-compare" id="cmpTemp">-- vs OWM</div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-icon">💧</div>
+        <div class="sensor-val" id="humVal">--</div>
+        <div class="sensor-unit">%</div>
+        <div class="sensor-label">Humidity (Local)</div>
+        <div class="sensor-compare" id="cmpHum">-- vs OWM</div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-icon">🌀</div>
+        <div class="sensor-val" id="presVal">--</div>
+        <div class="sensor-unit">hPa</div>
+        <div class="sensor-label">Pressure (BMP280)</div>
+        <div class="sensor-compare" id="owmPressure2">-- OWM</div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-icon">🚿</div>
+        <div class="sensor-val" id="flowVal">--</div>
+        <div class="sensor-unit">L/min</div>
+        <div class="sensor-label">Flow Rate (YF-S201)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       RAINFALL ANALYTICS
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">🌧️ Rainfall Analytics</h2>
+    <div class="rain-grid">
+
+      <div class="rain-card priority-1">
+        <div class="rain-priority">Priority 1</div>
+        <div class="rain-icon">🪣</div>
+        <div class="rain-label">Tipping Bucket</div>
+        <div class="rain-val" id="tipBucketVal">No data</div>
+        <div class="rain-sub">Most accurate — direct measurement</div>
+      </div>
+
+      <div class="rain-card priority-2">
+        <div class="rain-priority">Priority 2</div>
+        <div class="rain-icon">🌩️</div>
+        <div class="rain-label">OpenWeatherMap</div>
+        <div class="rain-val" id="owmRainfall">No data</div>
+        <div class="rain-sub">Cloud API rainfall (1h)</div>
+      </div>
+
+      <div class="rain-card priority-3">
+        <div class="rain-priority">Priority 3</div>
+        <div class="rain-icon">📈</div>
+        <div class="rain-label">Estimated (Sensor Trend)</div>
+        <div class="rain-val" id="estimatedRainVal">None detected</div>
+        <div class="rain-sub">Inferred from moisture/pressure/humidity</div>
+      </div>
+
+      <div class="rain-card effective-card">
+        <div class="rain-priority">Effective</div>
+        <div class="rain-icon">✅</div>
+        <div class="rain-label">Effective Rainfall Used</div>
+        <div class="rain-val" id="effectiveRainVal">-- mm</div>
+        <div class="rain-sub">Applied to water balance</div>
+      </div>
+
+    </div>
+
+    <!-- Rain Probability Analytics -->
+    <div class="rain-prob-panel">
+      <div class="rain-prob-header">
+        <span>🌦️ Rain Probability</span>
+        <span class="rain-prob-num" id="rainProbVal">--%</span>
+        <span id="rainCategory" class="rain-cat">--</span>
+      </div>
+      <div class="rain-prob-bar-wrap">
+        <div class="rain-prob-bar" id="rainProbBar"></div>
+      </div>
+      <div class="rain-prob-legend">
+        <span>0% Clear</span><span>35% Possible</span><span>75% Likely</span><span>100% Rain</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       WATER BUDGET ACCOUNTING
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">💧 Water Budget Accounting</h2>
+    <div class="budget-grid">
+      <div class="budget-card">
+        <div class="budget-label">Total Irrigation Applied</div>
+        <div class="budget-val" id="appliedVal">-- L</div>
+        <div class="budget-sub">Flow sensor cumulative</div>
+      </div>
+      <div class="budget-card">
+        <div class="budget-label">Rainfall Contribution</div>
+        <div class="budget-val rain-val-color" id="rainfallContrib">-- L</div>
+        <div class="budget-sub">Effective × Plot Area</div>
+      </div>
+      <div class="budget-card">
+        <div class="budget-label">Seasonal Required</div>
+        <div class="budget-val" id="requiredVal">-- L</div>
+        <div class="budget-sub">Δ × Plot Area</div>
+      </div>
+      <div class="budget-card highlight">
+        <div class="budget-label">Balance Remaining</div>
+        <div class="budget-val" id="balanceVal">-- L</div>
+        <div class="budget-sub">Budget left this season</div>
+      </div>
+      <div class="budget-card">
+        <div class="budget-label">Flow Sensor Total</div>
+        <div class="budget-val" id="totalFlowVal">-- L</div>
+        <div class="budget-sub">YF-S201 measured</div>
+      </div>
+    </div>
+    <div class="budget-bar-wrap">
+      <div class="budget-progress" id="budgetProgress"></div>
+    </div>
+    <div class="budget-legend" id="budgetPct">-- % of seasonal budget used</div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       REMAINING IRRIGATION ANALYTICS
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">📊 Remaining Irrigation Analytics</h2>
+    <div class="rem-grid">
+      <div class="rem-card">
+        <div class="rem-icon">💧</div>
+        <div class="rem-label">Water Remaining</div>
+        <div class="rem-val" id="balRemaining">-- L</div>
+        <div class="rem-sub">To meet seasonal delta</div>
+      </div>
+      <div class="rem-card">
+        <div class="rem-icon">📅</div>
+        <div class="rem-label">Est. Days Remaining</div>
+        <div class="rem-val" id="daysRemaining">--</div>
+        <div class="rem-sub">Based on current ETo rate</div>
+      </div>
+      <div class="rem-card">
+        <div class="rem-icon">⚡</div>
+        <div class="rem-label">Irrigation Efficiency</div>
+        <div class="rem-val" id="irrigEfficiency">-- %</div>
+        <div class="rem-sub">Applied + Rain vs Required</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       SOIL CALIBRATION PANEL
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">🔬 Soil Calibration Engine (SAT / FC / PWP)</h2>
+    <div class="calib-info">
+      <p>Enter ADC values recorded in lab-controlled conditions (dry air, field capacity, permanent wilting point).
+         Saved to Firebase → synced to device EEPROM within 15s.</p>
+    </div>
+    <div class="calib-grid">
+
+      <!-- Channel 0 — Sensor 1 (15cm) -->
+      <div class="calib-card">
+        <div class="calib-card-title">Sensor 1 — 15 cm (CH0)</div>
+        <div class="calib-row"><label>ADC at Dry Air</label>
+          <input type="number" id="calib_dry_0" class="calib-input" value="850" min="500" max="1023"></div>
+        <div class="calib-row"><label>ADC at Field Capacity</label>
+          <input type="number" id="calib_fc_0"  class="calib-input" value="600" min="100" max="900"></div>
+        <div class="calib-row"><label>ADC at PWP</label>
+          <input type="number" id="calib_pwp_0" class="calib-input" value="750" min="300" max="1000"></div>
+        <div class="calib-row"><label>VWC at FC (0–1)</label>
+          <input type="number" id="vwc_fc_0"    class="calib-input" value="0.35" min="0.1" max="0.6" step="0.01"></div>
+        <div class="calib-row"><label>VWC at PWP (0–1)</label>
+          <input type="number" id="vwc_pwp_0"   class="calib-input" value="0.12" min="0.01" max="0.3" step="0.01"></div>
+      </div>
+
+      <!-- Channel 1 — Sensor 2 (30cm) -->
+      <div class="calib-card">
+        <div class="calib-card-title">Sensor 2 — 30 cm (CH1)</div>
+        <div class="calib-row"><label>ADC at Dry Air</label>
+          <input type="number" id="calib_dry_1" class="calib-input" value="845" min="500" max="1023"></div>
+        <div class="calib-row"><label>ADC at Field Capacity</label>
+          <input type="number" id="calib_fc_1"  class="calib-input" value="595" min="100" max="900"></div>
+        <div class="calib-row"><label>ADC at PWP</label>
+          <input type="number" id="calib_pwp_1" class="calib-input" value="745" min="300" max="1000"></div>
+        <div class="calib-row"><label>VWC at FC (0–1)</label>
+          <input type="number" id="vwc_fc_1"    class="calib-input" value="0.35" min="0.1" max="0.6" step="0.01"></div>
+        <div class="calib-row"><label>VWC at PWP (0–1)</label>
+          <input type="number" id="vwc_pwp_1"   class="calib-input" value="0.12" min="0.01" max="0.3" step="0.01"></div>
+      </div>
+
+      <!-- Channel 2 — Sensor 3 (45cm) -->
+      <div class="calib-card">
+        <div class="calib-card-title">Sensor 3 — 45 cm (CH2)</div>
+        <div class="calib-row"><label>ADC at Dry Air</label>
+          <input type="number" id="calib_dry_2" class="calib-input" value="855" min="500" max="1023"></div>
+        <div class="calib-row"><label>ADC at Field Capacity</label>
+          <input type="number" id="calib_fc_2"  class="calib-input" value="605" min="100" max="900"></div>
+        <div class="calib-row"><label>ADC at PWP</label>
+          <input type="number" id="calib_pwp_2" class="calib-input" value="755" min="300" max="1000"></div>
+        <div class="calib-row"><label>VWC at FC (0–1)</label>
+          <input type="number" id="vwc_fc_2"    class="calib-input" value="0.35" min="0.1" max="0.6" step="0.01"></div>
+        <div class="calib-row"><label>VWC at PWP (0–1)</label>
+          <input type="number" id="vwc_pwp_2"   class="calib-input" value="0.12" min="0.01" max="0.3" step="0.01"></div>
+      </div>
+
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn btn-save" onclick="saveCalibration()">
+        🔬 Save Calibration to Firebase &amp; Device
+      </button>
+      <span id="calibSavedBadge" class="config-badge" style="display:none">✓ Calibration Saved</span>
+      <span class="config-hint">Device reads calibration within 15s and applies to ADC→VWC conversion</span>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       PUMP CONTROL
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">⚙️ Pump Control</h2>
+    <div class="pump-panel">
+      <div class="pump-status-wrap">
+        <div class="pump-indicator" id="pumpIndicator"></div>
+        <div>
+          <div class="pump-status-text" id="pumpStatusText">--</div>
+          <div class="pump-mode-text"   id="pumpModeText">--</div>
+        </div>
+      </div>
+      <div class="pump-buttons">
+        <button class="btn btn-green"  onclick="sendCmd('pump_on')">💧 Pump ON</button>
+        <button class="btn btn-red"    onclick="sendCmd('pump_off')">🛑 Pump OFF</button>
+        <button class="btn btn-blue"   onclick="sendCmd('auto_on')">🤖 Auto Mode</button>
+        <button class="btn btn-purple" onclick="sendCmd('manual_on')">✋ Manual Mode</button>
+      </div>
+    </div>
+    <div class="fault-banner" id="faultBanner" style="display:none">
+      ⚠️ PIPELINE FAULT DETECTED — Pump automatically stopped. Check pipeline for blockage or leakage.
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       IRRIGATION EVENT LOG
+       ═══════════════════════════════════════════════════ -->
+  <section class="section">
+    <h2 class="section-title">📋 Irrigation Event Log</h2>
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Time</th><th>CSMI</th><th>AI Score</th>
+            <th>Dose (L)</th><th>Trigger</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="5" style="text-align:center;color:#8b949e">No events yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       🤖 AI FARM ASSISTANT — GEMINI POWERED
+       ═══════════════════════════════════════════════════ -->
+  <section class="section ai-chat-section" id="aiChatSection">
+
+    <!-- Chat Header -->
+    <div class="ai-chat-header">
+      <div class="ai-chat-header-left">
+        <div class="ai-chat-glow-dot" id="aiGlowDot"></div>
+        <span class="ai-chat-title">🤖 AI Farm Assistant</span>
+        <span class="ai-chat-subtitle">Powered by Gemini · Advisory Only</span>
+      </div>
+      <div class="ai-chat-header-right">
+        <span class="ai-status-badge" id="aiStatusBadge">● Initializing</span>
+        <button class="ai-btn-clear" onclick="clearAIChat()" title="Clear conversation">🗑 Clear</button>
+        <button class="ai-btn-analyse" onclick="runAutoAnalysis()" title="Auto-analyse current farm data">⚡ Auto-Analyse</button>
+      </div>
+    </div>
+
+    <!-- Quick Questions -->
+    <div class="ai-quick-wrap">
+      <span class="ai-quick-label">Quick Ask:</span>
+      <div class="ai-quick-chips">
+        <button class="ai-chip" onclick="quickAsk('Why is the pump not starting?')">Pump not starting?</button>
+        <button class="ai-chip" onclick="quickAsk('Is rainfall likely today?')">Rain today?</button>
+        <button class="ai-chip" onclick="quickAsk('Explain current soil condition and CSMI value.')">Soil condition</button>
+        <button class="ai-chip" onclick="quickAsk('How much irrigation water is remaining this season?')">Water remaining</button>
+        <button class="ai-chip" onclick="quickAsk('Explain the water balance calculation.')">Water balance</button>
+        <button class="ai-chip" onclick="quickAsk('Are any sensors showing a fault?')">Sensor health</button>
+        <button class="ai-chip" onclick="quickAsk('Should irrigation run right now?')">Run now?</button>
+        <button class="ai-chip" onclick="quickAsk('Explain the offline mode and what happens without internet.')">Offline mode</button>
+        <button class="ai-chip" onclick="quickAsk('Is OpenWeatherMap active and being used?')">OWM status</button>
+        <button class="ai-chip" onclick="quickAsk('Explain the rain probability and what it means for irrigation.')">Rain probability</button>
+      </div>
+    </div>
+
+    <!-- Chat Messages Area -->
+    <div class="ai-chat-messages" id="aiChatMessages">
+      <!-- Welcome message injected by JS on load -->
+    </div>
+
+    <!-- Typing Indicator -->
+    <div class="ai-typing-indicator" id="aiTypingIndicator" style="display:none">
+      <div class="ai-typing-avatar">🤖</div>
+      <div class="ai-typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <span class="ai-typing-text">AI is thinking...</span>
+    </div>
+
+    <!-- Input Area -->
+    <div class="ai-input-wrap">
+      <div class="ai-input-box">
+        <textarea
+          id="aiUserInput"
+          class="ai-textarea"
+          placeholder="Ask about your farm — soil condition, irrigation, rainfall, sensor health, water balance..."
+          rows="1"
+          maxlength="500"
+          onkeydown="handleAIInputKey(event)"
+          oninput="autoResizeTextarea(this)"
+        ></textarea>
+        <div class="ai-input-actions">
+          <span class="ai-char-count" id="aiCharCount">0/500</span>
+          <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()" title="Send message">
+            <span id="aiSendIcon">➤</span>
+          </button>
+        </div>
+      </div>
+      <div class="ai-input-hint">
+        Advisory only · Does not control pump or modify settings · Enter or click ➤ to send
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <p>TSCRIC-LoRa v3.1 FINAL | Oriental College of Technology, Bhopal | Civil Engineering 2025–2026</p>
+    <p>Guide: Dr. Yogesh Iyer Murthy &nbsp;|&nbsp; Team: •AMAN KUMAR .Aditya Kumar · Akash Khandgre · Akash Kumar</p>
+    <p style="margin-top:6px;font-size:.65em;color:#555e6c">
+      Sensor Priority: Local Physical &gt; OpenWeatherMap API &nbsp;|&nbsp;
+      Offline-capable | LoRa fallback | Adaptive root-zone control | Gemini AI Assistant
+    </p>
+  </footer>
+
+  </div><!-- /mainContent -->
+  <script src="app.js"></script>
+</body>
+</html>
