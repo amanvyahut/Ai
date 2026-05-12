@@ -1,4 +1,4 @@
-# 🌾 TSCRIC-LoRa — Smart Irrigation Dashboard v3.1
+# 🌾 TSCRIC-LoRa — Smart Irrigation Dashboard
 
 > **Temporal Soil-Crop Resonance Irrigation Controller** — A comprehensive web-based smart irrigation management system with AI-powered advisory, multi-sensor integration, and autonomous offline capabilities.
 
@@ -369,7 +369,7 @@ MIT License — See LICENSE file for details.
 For issues, feature requests, or contributions:
 - Open an [Issue](https://github.com/amanvyahut/AI/issues)
 - Submit a [Pull Request](https://github.com/amanvyahut/AI/pulls)
-- Contact: amanvyahut@github.com
+- Contact: kumaraman5214@gmail.com
 
 ---
 
