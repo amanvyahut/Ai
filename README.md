@@ -59,7 +59,7 @@ amanvyahut/AI/
 
 ### Backend & Services
 - **Firebase Realtime Database** — Real-time data sync with IoT devices
-- **Google Gemini AI** — Natural language farm advisory
+
 - **OpenWeatherMap API** — Weather forecasting & rainfall data
 - **LoRa Communication** — Autonomous offline mesh network
 
@@ -107,7 +107,6 @@ amanvyahut/AI/
 
 4. **Add API Keys**
    - OpenWeatherMap API key
-   - Google Generative AI (Gemini) API key
    - Insert into `app.js` where indicated
 
 5. **Login**
@@ -199,7 +198,7 @@ amanvyahut/AI/
 - Trigger reason
 - Historical event table
 
-### 14. **🤖 AI Farm Assistant** (Powered by Gemini)
+### 14. **🤖 AI Farm Assistant** 
 - Natural language Q&A interface
 - Quick question chips (Pump, Rain, Soil, Water, etc.)
 - Auto-analysis feature
