@@ -1,5 +1,5 @@
 /* ============================================================
-   TSCRIC-LoRa Dashboard — app.js FINAL v3.0 PRODUCTION
+   TSCRIC-LoRa Dashboard — app.js PRODUCTION
    ============================================================
    Systems:
    - Firebase Realtime Database (live listener)
